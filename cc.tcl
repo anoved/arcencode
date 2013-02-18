@@ -1,13 +1,12 @@
 #!/usr/bin/tclsh
 
-# quick and dirty implementation of MapQuest coordinate compression:
-#http://open.mapquestapi.com/common/encodedecode.html
+namespace eval arcencode {
+	set version 0.1
+	namespace export arcencode arcdecode
+}
 
-# (default precision of 5 matches Google Maps' Encoded Polyline algorthim:
-#https://developers.google.com/maps/documentation/utilities/polylinealgorithm
-
-proc decompress {encoded {precision 5}} {
-	set p [expr {pow(10, -$precision)}]
+proc arcencode::arcdecode {encoded {precision 5}} {
+	set pfactor [expr {pow(10, -$precision)}]
 	set len [string length $encoded]
 	set index 0
 	set lat 0
@@ -16,48 +15,45 @@ proc decompress {encoded {precision 5}} {
 	
 	while {$index < $len} {
 		
+		# read a latitude coordinate
 		set shift 0
 		set result 0
-		
 		while {1} {
 			set b [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
 			set result [expr {$result | (($b & 0x1f) << $shift)}]
-			set shift [expr {$shift + 5}]
+			incr shift 5
 			if {$b < 0x20} {
 				break
 			}
 		}
-		
 		set dlat [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
 		set lat [expr {$lat + $dlat}]
 		
+		# read a longitude coordinate
 		set shift 0
 		set result 0
-		
 		while {1} {
 			set b [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
 			set result [expr {$result | (($b & 0x1f) << $shift)}]
-			set shift [expr {$shift + 5}]
+			incr shift 5
 			if {$b < 0x20} {
 				break
 			}
 		}
-		
 		set dlng [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
 		set lng [expr {$lng + $dlng}]
 		
 		
-		
-		lappend points [format %.*f $precision [expr {$lat * $p}]]
-		lappend points [format %.*f $precision [expr {$lng * $p}]]
+		lappend points [format %.*f $precision [expr {$lat * $pfactor}]]
+		lappend points [format %.*f $precision [expr {$lng * $pfactor}]]
 	}
 	
 	return $points
 }
 
-proc encodeNumber {num} {
+proc arcencode::encodeNumber {num} {
 	set num [expr {$num << 1}]
 	if {$num < 0} {
 		set num [expr {~$num}]
@@ -68,21 +64,24 @@ proc encodeNumber {num} {
 		set num [expr {$num >> 5}]
 	}
 	append encoded [format %c [expr {$num + 63}]]
+	return $encoded
 }
 
-proc compress {points {precision 5}} {
+proc arcencode::arcencode {points {precision 5}} {
+	
+	set pfactor [expr {pow(10, $precision)}]
+	
+	set encoded {}
 	set oldLat 0
 	set oldLng 0
-	set precision [expr {pow(10, $precision)}]
-	set encoded {}
 	
 	foreach {lat lng} $points {
 		
-		# Round to N decimal places
-		set lat [expr {round($lat * $precision)}]
-		set lng [expr {round($lng * $precision)}]
+		# Convert these coordinates to integers
+		set lat [expr {round($lat * $pfactor)}]
+		set lng [expr {round($lng * $pfactor)}]
 		
-		# Encode the differences between the points
+		# Encode the difference between these coordinates and the old ones.
 		append encoded [encodeNumber [expr {$lat - $oldLat}]]
 		append encoded [encodeNumber [expr {$lng - $oldLng}]]
 		
@@ -93,26 +92,4 @@ proc compress {points {precision 5}} {
 	return $encoded
 }
 
-
-set p {
-45.967 -83.928700032549
-55 -83.928420000
-35 -83.97948699748273
-25.000000 -83.000000
-15.00000000000 -83.9279400000
-0.9600 -83.9275623435
-35.90 -0.90
-35.900 -83.00
-35.000 -83.000
-35.90000 -83.0000
-35.00000 -83.00000
-35.000004190 -83.00000123490
-}
-
-set c [compress $p 5]
-puts $c
-set d [decompress $c 5]
-puts $d
-puts "===="
-puts [decompress "_p~iF~ps|U_ulLnnqC_mqNvxq`@"]
-
+package provide arcencode $arcencode::version
