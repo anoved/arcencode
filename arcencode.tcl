@@ -1,5 +1,3 @@
-
-
 namespace eval arcencode {
 	set version 0.1
 	namespace export arcencode arcdecode
@@ -9,8 +7,8 @@ proc arcencode::arcdecode {encoded {precision 5}} {
 	set pfactor [expr {pow(10, -$precision)}]
 	set len [string length $encoded]
 	set index 0
-	set lat 0
-	set lng 0
+	set a 0
+	set b 0
 	set points {}
 	
 	while {$index < $len} {
@@ -22,45 +20,45 @@ proc arcencode::arcdecode {encoded {precision 5}} {
 		while {1} {
 			
 			# read a character value from the encoded string
-			set b [expr {[scan [string index $encoded $index] %c] - 63}]
+			set val [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
 			
 			# look at the rightmost 5 bits with & 0b11111; for each successive
-			# char, shift val left and | with current result to accumulate val.
-			set result [expr {$result | (($b & 0b11111) << $shift)}]
+			# char, shift it left 5 and | with current result to accumulate num.
+			set result [expr {$result | (($val & 0b11111) << $shift)}]
 			incr shift 5
 			
 			# no more chars needed for this val if the high bit is not set
-			if {$b < 0b100000} {
+			if {$val < 0b100000} {
 				break
 			}
 		}
 		
 		# if the result is odd, flip bits after shifting right to restore neg.
-		set dlat [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
+		set deltaA [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
 		
 		# add delta to last value to get new value
-		set lat [expr {$lat + $dlat}]
+		set a [expr {$a + $deltaA}]
 		
 		# repeat for the other member of the coordinate pair
 		
 		set shift 0
 		set result 0
 		while {1} {
-			set b [expr {[scan [string index $encoded $index] %c] - 63}]
+			set val [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
-			set result [expr {$result | (($b & 0b11111) << $shift)}]
+			set result [expr {$result | (($val & 0b11111) << $shift)}]
 			incr shift 5
-			if {$b < 0b100000} {
+			if {$val < 0b100000} {
 				break
 			}
 		}
-		set dlng [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
-		set lng [expr {$lng + $dlng}]
+		set deltaB [expr {(($result & 1) ? ~($result >> 1) : ($result >> 1))}]
+		set b [expr {$b + $deltaB}]
 		
 		# convert coordinates back to floating point and append to point list
-		lappend points [format %.*f $precision [expr {$lat * $pfactor}]]
-		lappend points [format %.*f $precision [expr {$lng * $pfactor}]]
+		lappend points [format %.*f $precision [expr {$a * $pfactor}]]
+		lappend points [format %.*f $precision [expr {$b * $pfactor}]]
 	}
 	
 	return $points
@@ -71,21 +69,21 @@ proc arcencode::arcencode {points {precision 5}} {
 	set pfactor [expr {pow(10, $precision)}]
 	
 	set encoded {}
-	set oldLat 0
-	set oldLng 0
+	set lastA 0
+	set lastB 0
 	
-	foreach {lat lng} $points {
+	foreach {a b} $points {
 		
 		# Convert these coordinates to integers
-		set lat [expr {round($lat * $pfactor)}]
-		set lng [expr {round($lng * $pfactor)}]
+		set a [expr {round($a * $pfactor)}]
+		set b [expr {round($b * $pfactor)}]
 		
 		# Encode the difference between these coordinates and the old ones.
-		append encoded [encodeNumber [expr {$lat - $oldLat}]]
-		append encoded [encodeNumber [expr {$lng - $oldLng}]]
+		append encoded [encodeNumber [expr {$a - $lastA}]]
+		append encoded [encodeNumber [expr {$b - $lastB}]]
 		
-		set oldLat $lat
-		set oldLng $lng
+		set lastA $a
+		set lastB $b
 	}
 	
 	return $encoded
