@@ -21,9 +21,9 @@ proc arcencode::arcdecode {encoded {precision 5}} {
 		while {1} {
 			set b [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
-			set result [expr {$result | (($b & 0x1f) << $shift)}]
+			set result [expr {$result | (($b & 0b11111) << $shift)}]
 			incr shift 5
-			if {$b < 0x20} {
+			if {$b < 0b100000} {
 				break
 			}
 		}
@@ -36,9 +36,9 @@ proc arcencode::arcdecode {encoded {precision 5}} {
 		while {1} {
 			set b [expr {[scan [string index $encoded $index] %c] - 63}]
 			incr index
-			set result [expr {$result | (($b & 0x1f) << $shift)}]
+			set result [expr {$result | (($b & 0b11111) << $shift)}]
 			incr shift 5
-			if {$b < 0x20} {
+			if {$b < 0b100000} {
 				break
 			}
 		}
@@ -51,20 +51,6 @@ proc arcencode::arcdecode {encoded {precision 5}} {
 	}
 	
 	return $points
-}
-
-proc arcencode::encodeNumber {num} {
-	set num [expr {$num << 1}]
-	if {$num < 0} {
-		set num [expr {~$num}]
-	}
-	set encoded {}
-	while {$num > 0x20} {
-		append encoded [format %c [expr {(0x20 | ($num & 0x1f)) + 63}]]
-		set num [expr {$num >> 5}]
-	}
-	append encoded [format %c [expr {$num + 63}]]
-	return $encoded
 }
 
 proc arcencode::arcencode {points {precision 5}} {
@@ -89,6 +75,27 @@ proc arcencode::arcencode {points {precision 5}} {
 		set oldLng $lng
 	}
 	
+	return $encoded
+}
+
+proc arcencode::encodeNumber {num} {
+	
+	# left shift one bit
+	set num [expr {$num << 1}]
+	
+	# invert bits if negative
+	if {$num < 0} {
+		set num [expr {~$num}]
+	}
+	
+	
+	set encoded {}
+	while {$num > 0b100000} {
+		append encoded [format %c [expr {(0b100000 | ($num & 0b11111)) + 63}]]
+		set num [expr {$num >> 5}]
+	}
+	
+	append encoded [format %c [expr {$num + 63}]]
 	return $encoded
 }
 
