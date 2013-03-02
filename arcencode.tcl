@@ -4,6 +4,10 @@ namespace eval arcencode {
 }
 
 proc arcencode::arcdecode {encoded {precision 5}} {
+	
+	# strip whitespace from encoded string
+	regsub -all {\s} $encoded {} encoded
+	
 	set pfactor [expr {pow(10, -$precision)}]
 	set len [string length $encoded]
 	set index 0
